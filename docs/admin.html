@@ -83,6 +83,7 @@
 <script src="config.js"></script>
 <script>
 var isAuthenticated = false;
+var adminPassword = ''; // 認証済みパスワードを保持（registerAttendee のサーバー検証に使用）
 
 function showStep(step) {
   ['password','register','result'].forEach(function(s) {
@@ -113,6 +114,7 @@ function onVerifyPassword() {
       setVerifyState(false);
       if (result.success) {
         isAuthenticated = true;
+        adminPassword = pw; // パスワードを保持
         document.getElementById('password-error').style.display = 'none';
         showStep('register');
         document.getElementById('emailInput').focus();
@@ -133,7 +135,7 @@ function onRegister() {
   if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) { showRegisterError('有効なメールアドレスを入力してください。'); return; }
   hideRegisterError();
   setRegisterState(true);
-  gasPost({ action: 'registerAttendee', email: email })
+  gasPost({ action: 'registerAttendee', email: email, password: adminPassword })
     .then(function(result) {
       setRegisterState(false);
       if (result.success) showResultStep(result.url, result.message);

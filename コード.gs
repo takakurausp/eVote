@@ -88,7 +88,7 @@ function doPost(e) {
       result = { success: verifyAdminPassword(body.password) };
 
     } else if (action === 'registerAttendee') {
-      result = registerAttendee(body.email);
+      result = registerAttendee(body.email, body.password);
 
     } else {
       result = { success: false, message: '不明なアクション: ' + action };
@@ -182,11 +182,18 @@ function verifyAdminPassword(password) {
  * 当日参加者を名簿に即時登録し、トークン付き投票URLを発行して返す。
  * 同時に、参加者のアドレス宛に案内メールを送信する。
  * 締め切り後・同一アドレスの重複登録も適切にハンドリングする。
+ * GAS URL が公開されているため、事務局パスワードをサーバー側でも検証する。
  *
- * @param {string} email - 登録するメールアドレス
+ * @param {string} email    - 登録するメールアドレス
+ * @param {string} password - 事務局パスワード（必須）
  * @returns {Object} { success: boolean, url: string, message: string }
  */
-function registerAttendee(email) {
+function registerAttendee(email, password) {
+  // サーバー側でもパスワードを検証（GAS URL が公開されているため二重チェック）
+  if (!verifyAdminPassword(password)) {
+    return { success: false, url: '', message: '認証エラー：パスワードが正しくありません。' };
+  }
+
   // 簡易バリデーション
   if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
     return { success: false, url: '', message: '有効なメールアドレスを入力してください。' };
