@@ -459,9 +459,12 @@ function tallySendResults() {
 
   settings.votes.forEach(function(vote, idx) {
     body += '■ ' + vote.title + '\n';
-    Object.keys(tallies[idx]).forEach(function(opt) {
-      body += '  ' + opt + ': ' + tallies[idx][opt] + ' 票\n';
-    });
+    // 票数の多い順に並べ替えて出力
+    Object.keys(tallies[idx])
+      .sort(function(a, b) { return tallies[idx][b] - tallies[idx][a]; })
+      .forEach(function(opt) {
+        body += '  ' + opt + ': ' + tallies[idx][opt] + ' 票\n';
+      });
     body += '\n';
   });
 
