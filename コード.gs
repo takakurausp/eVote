@@ -418,7 +418,7 @@ function tallySendResults() {
   var ballotSheet = ss.getSheetByName(SHEET_BALLOT_BOX);
   var lastRow     = ballotSheet.getLastRow();
 
-  if (lastRow < 2) {
+  if (lastRow < 1) {
     Logger.log('集計: 投票データがありません。');
     try {
       SpreadsheetApp.getUi().alert('投票データがまだありません。');
@@ -437,8 +437,9 @@ function tallySendResults() {
   });
 
   // 投票箱を全行スキャン（1列目=日時、2列目以降=各投票の選択肢）
+  // ヘッダー行なし運用のため1行目から読み込む。日時が空の行は自動スキップ。
   var totalVotes = 0;
-  var allData = ballotSheet.getRange(2, 1, lastRow - 1, numVotes + 1).getValues();
+  var allData = ballotSheet.getRange(1, 1, lastRow, numVotes + 1).getValues();
   allData.forEach(function(rowData) {
     if (!rowData[0]) return; // 日時が空の行はスキップ
     totalVotes++;
