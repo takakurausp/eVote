@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eVote 投票画面</title>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous">
+  <style>
+    body { background-color: #f8f9fa; min-height: 100vh; }
+    .vote-card { max-width: 640px; margin: 2rem auto; border: none; box-shadow: 0 2px 12px rgba(0,0,0,.10); }
+    .vote-card .card-header { background-color: #0d6efd; color: #fff; font-size: 1.1rem; font-weight: 600; padding: 1rem 1.25rem; }
+    .section-title { font-weight: 600; font-size: 1rem; color: #212529; margin-bottom: .75rem; }
+    .form-check { padding: .5rem .25rem .5rem 2rem; border-radius: .375rem; transition: background .15s; }
+    .form-check:hover { background-color: #e9f0ff; }
+    .form-check-input:checked ~ .form-check-label { font-weight: 500; color: #0d6efd; }
+    #state-loading, #state-error, #state-form, #state-submitting, #state-done { display: none; }
+  </style>
+</head>
+<body>
+<div class="container py-4">
+  <div class="card vote-card">
+    <div class="card-header">eVote &mdash; 投票画面</div>
+    <div class="card-body p-4">
+
+      <div id="state-loading" class="text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status"><span class="visually-hidden">読み込み中...</span></div>
+        <p class="text-muted">投票情報を読み込んでいます...</p>
+      </div>
+
+      <div id="state-error">
+        <div class="alert alert-danger d-flex align-items-center" role="alert">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+               class="bi bi-exclamation-triangle-fill me-2 flex-shrink-0" viewBox="0 0 16 16">
+            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+          </svg>
+          <span id="error-message">エラーが発生しました。</span>
+        </div>
+      </div>
+
+      <div id="state-form">
+        <p class="text-muted small mb-3">締め切り: <strong id="deadline-display"></strong></p>
+        <div id="vote-sections"></div>
+        <div class="d-grid mt-3">
+          <button id="submit-btn" type="button" class="btn btn-primary btn-lg" onclick="onSubmit()">投票する</button>
+        </div>
+        <p class="text-muted small text-center mt-2">投票は匿名で処理されます。一度送信すると変更できません。</p>
+      </div>
+
+      <div id="state-submitting" class="text-center py-5">
+        <div class="spinner-border text-primary mb-3" role="status"><span class="visually-hidden">送信中...</span></div>
+        <p class="text-muted">投票を送信しています...</p>
+      </div>
+
+      <div id="state-done">
+        <div class="text-center py-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" fill="#198754"
+               class="bi bi-check-circle-fill mb-3" viewBox="0 0 16 16">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+          </svg>
+          <h4 class="text-success">投票が完了しました</h4>
+          <p class="text-muted mt-2">ご参加ありがとうございました。<br>このページを閉じていただいて構いません。</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+// URLパラメータからトークンを取得
+var TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
+var STATES = ['loading', 'error', 'form', 'submitting', 'done'];
+function showState(s) {
+  STATES.forEach(function(n) {
+    var el = document.getElementById('state-' + n);
+    if (el) el.style.display = (n === s) ? 'block' : 'none';
+  });
+}
+function showError(msg) {
+  document.getElementById('error-message').textContent = msg;
+  showState('error');
+}
+
+function gasPost(payload) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  }).then(function(res) { return res.json(); });
+}
+
+window.addEventListener('load', function() {
+  if (!TOKEN) { showError('投票URLが正しくありません。案内メールのリンクからアクセスしてください。'); return; }
+  showState('loading');
+  gasPost({ action: 'getVoteFormData', token: TOKEN })
+    .then(function(result) {
+      if (!result.valid) { showError(result.message); return; }
+      buildForm(result.settings);
+      showState('form');
+    })
+    .catch(function(err) { showError('サーバーとの通信に失敗しました: ' + err.message); });
+});
+
+function buildForm(s) {
+  document.getElementById('deadline-display').textContent = s.deadline || '（設定なし）';
+  var container = document.getElementById('vote-sections');
+  container.innerHTML = '';
+  (s.votes || []).forEach(function(vote, vIdx) {
+    var optionsHtml = (vote.options || []).map(function(opt, oIdx) {
+      return '<div class="form-check">' +
+        '<input class="form-check-input" type="radio" name="vote_' + vIdx + '" id="v' + vIdx + '_' + oIdx + '" value="' + escapeHtml(opt) + '">' +
+        '<label class="form-check-label" for="v' + vIdx + '_' + oIdx + '">' + escapeHtml(opt) + '</label>' +
+        '</div>';
+    }).join('');
+    container.innerHTML +=
+      (vIdx > 0 ? '<hr class="my-4">' : '') +
+      '<div class="mb-4">' +
+        '<p class="section-title">' + escapeHtml(vote.title) + '</p>' +
+        optionsHtml +
+        '<div id="vote-error-' + vIdx + '" class="text-danger small mt-1" style="display:none;">「' + escapeHtml(vote.title) + '」の選択肢を選んでください。</div>' +
+      '</div>';
+  });
+}
+
+function onSubmit() {
+  var choices = [], hasError = false, vIdx = 0;
+  while (document.querySelectorAll('input[name="vote_' + vIdx + '"]').length > 0) {
+    var radios = document.querySelectorAll('input[name="vote_' + vIdx + '"]');
+    var selected = '';
+    radios.forEach(function(r) { if (r.checked) selected = r.value; });
+    var errEl = document.getElementById('vote-error-' + vIdx);
+    if (!selected) { if (errEl) errEl.style.display = 'block'; hasError = true; }
+    else           { if (errEl) errEl.style.display = 'none'; }
+    choices.push(selected);
+    vIdx++;
+  }
+  if (hasError) return;
+  showState('submitting');
+  gasPost({ action: 'submitVote', token: TOKEN, choices: choices })
+    .then(function(result) {
+      if (result.success) showState('done');
+      else showError(result.message);
+    })
+    .catch(function(err) { showError('送信に失敗しました: ' + err.message); });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+</script>
+</body>
+</html>
